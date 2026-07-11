@@ -9,7 +9,7 @@ build_nghttp2() {
     _host=$(map_autoconf_host "$_t")
     _extra=$(target_extra_cflags "$_t")
 
-    _src=$(fetch_verify nghttp2)
+    _src=$(fetch_verify nghttp2 "$_t")
     log "nghttp2: configure --host=$_host --enable-lib-only"
     run_configure "$_wd" "$_extra" "$_src" -- \
         --host="$_host" \

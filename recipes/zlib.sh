@@ -8,7 +8,7 @@ build_zlib() {
     _t=$1; _wd=$2
     _extra=$(target_extra_cflags "$_t")
 
-    _src=$(fetch_verify zlib)
+    _src=$(fetch_verify zlib "$_t")
     log "zlib: configure --static"
     # zlib's configure is not autoconf; it reads CC/AR/RANLIB/CFLAGS from env.
     run_configure "$_wd" "$_extra" "$_src" -- \

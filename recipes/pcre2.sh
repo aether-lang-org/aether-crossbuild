@@ -10,7 +10,7 @@ build_pcre2() {
     _host=$(map_autoconf_host "$_t")
     _extra=$(target_extra_cflags "$_t") # "" or --sysroot=... for freebsd
 
-    _src=$(fetch_verify pcre2)
+    _src=$(fetch_verify pcre2 "$_t")
     log "pcre2: configure --host=$_host"
     run_configure "$_wd" "$_extra" "$_src" -- \
         --host="$_host" \

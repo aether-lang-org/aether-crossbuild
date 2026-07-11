@@ -19,7 +19,7 @@ build_openssl() {
     _osslflags=""
     case "$_t" in *-macos) _osslflags="-DOPENSSL_NO_APPLE_CRYPTO_RANDOM" ;; esac
 
-    _src=$(fetch_verify openssl)
+    _src=$(fetch_verify openssl "$_t")
     log "openssl: Configure $_osslt (no-shared, libs only)"
     ( cd "$_src" \
       && PATH="$_wd:$PATH" CC="$_wd/cc" \

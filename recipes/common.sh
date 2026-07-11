@@ -194,9 +194,17 @@ lock_field() {
 }
 
 # --- fetch + verify + extract -------------------------------------------------
-# fetch_verify <name>  -> echoes the extracted source directory path.
+# fetch_verify <name> <target>  -> echoes a freshly-extracted source dir.
+#
+# The extraction dir is PER-TARGET (work/src/<target>/<name>): configure/make
+# mutate the source in place (zlib renames zconf.h.in -> zconf.h, etc.), so a
+# shared work/src/<name> across targets means a second target — or a concurrent
+# `provision.sh` — clobbers or half-consumes the first's tree. Keeping it
+# per-target makes builds independent and lets `provision.sh --all` (or two
+# hand-run invocations) coexist safely.
 fetch_verify() {
     _n=$1
+    _t=${2:-common}
     _url=$(lock_field "$_n" url)
     _sha=$(lock_field "$_n" sha)
     # Name-prefixed cache key: collision-safe if two deps ever share a basename
@@ -212,7 +220,7 @@ fetch_verify() {
         _got=$(sha256sum "$_tar" | awk '{print $1}')
         [ "$_got" = "$_sha" ] || die "$_n checksum mismatch: got $_got want $_sha"
     fi
-    _ex="$WORK/src/$_n"
+    _ex="$WORK/src/$_t/$_n"
     rm -rf "$_ex"; mkdir -p "$_ex"
     tar xf "$_tar" -C "$_ex" --strip-components=1 || die "extract failed: $_tar"
     echo "$_ex"
