@@ -199,7 +199,9 @@ fetch_verify() {
     _n=$1
     _url=$(lock_field "$_n" url)
     _sha=$(lock_field "$_n" sha)
-    _tar="$DL/$(basename "$_url")"
+    # Name-prefixed cache key: collision-safe if two deps ever share a basename
+    # (e.g. FreeBSD amd64/arm64 base.txz). Matches scripts/pin-hashes.sh.
+    _tar="$DL/$_n-$(basename "$_url")"
     if [ ! -f "$_tar" ]; then
         log "fetch $_n <- $_url"
         curl -fsSL "$_url" -o "$_tar" || die "download failed: $_url"

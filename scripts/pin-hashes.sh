@@ -13,14 +13,29 @@ DL="$ROOT/work/downloads"; mkdir -p "$DL"
 rewrite=0; [ "${1:-}" = "--rewrite" ] && rewrite=1
 
 tmp=$(mktemp)
+failures=0
 # Walk each non-comment, non-blank line: name version url sha
+# One dead URL must NOT discard the hashes we already computed — a failed fetch
+# keeps that entry's existing sha field (usually PIN_ME) and continues.
 while IFS= read -r line; do
     case "$line" in ''|\#*) printf '%s\n' "$line" >> "$tmp"; continue ;; esac
     name=$(printf '%s' "$line" | awk '{print $1}')
     ver=$(printf '%s' "$line" | awk '{print $2}')
     url=$(printf '%s' "$line" | awk '{print $3}')
-    f="$DL/$(basename "$url")"
-    [ -f "$f" ] || { echo "fetch $name" >&2; curl -fsSL "$url" -o "$f"; }
+    oldsha=$(printf '%s' "$line" | awk '{print $4}')
+    # Cache key must be collision-safe: FreeBSD amd64 and arm64 are both named
+    # base.txz but are different files. Prefix the entry NAME (unique per line).
+    f="$DL/$name-$(basename "$url")"
+    if [ ! -f "$f" ]; then
+        echo "fetch $name" >&2
+        if ! curl -fsSL --max-time 300 "$url" -o "$f"; then
+            echo "  WARNING: fetch failed for '$name' ($url) — keeping '$oldsha'" >&2
+            rm -f "$f"
+            failures=$((failures + 1))
+            printf '%-22s %-8s %s  %s\n' "$name" "$ver" "$url" "$oldsha" >> "$tmp"
+            continue
+        fi
+    fi
     sha=$(sha256sum "$f" | awk '{print $1}')
     printf '%-22s %-8s %s  %s\n' "$name" "$ver" "$url" "$sha"
     printf '%-22s %-8s %s  %s\n' "$name" "$ver" "$url" "$sha" >> "$tmp"
@@ -34,4 +49,10 @@ else
     rm -f "$tmp"
     echo "" >&2
     echo "(dry run — paste the sha column into deps.lock, or re-run with --rewrite)" >&2
+fi
+
+if [ "$failures" -gt 0 ]; then
+    echo "" >&2
+    echo "$failures URL(s) failed — those entries still say PIN_ME. Fix the URL in" >&2
+    echo "deps.lock and re-run; the successful hashes above are preserved." >&2
 fi
