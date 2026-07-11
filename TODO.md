@@ -7,7 +7,33 @@ entry — not a rewrite. Add **validated** targets only; a speculative row that
 nobody has run rots into a broken row. Prove each new target builds at least one
 lib before committing it to `MATRIX`.
 
-## Priority: Windows (x86_64 + aarch64)
+## Direction decision (Nic) — is this whole matrix what we want?
+
+Before more targets get added, **Nic needs to decide the direction**. The
+current 8-target `MATRIX` was chosen by the person building this out, not ratified
+— and only some of it maps to what Aether's CI already treats as "supported."
+Three groups need an explicit yes/no, because they carry different maintenance
+and provenance costs:
+
+| Group | Targets | Status | Maps to Aether CI? | Decision needed |
+|---|---|---|---|---|
+| **Core** | linux-gnu ×2, macos ×2 | ✅ proven | Yes (ubuntu + macos are CI-gated) | Keep — uncontroversial |
+| **musl** | `x86_64-linux-musl`, `aarch64-linux-musl` | ✅ proven | **No** — not in Aether CI | **Nic: do we want static-Linux builds?** |
+| **FreeBSD** | `x86_64-freebsd`, `aarch64-freebsd` | ⚠️ wired, base-sysroot path untested | **No** — not in Aether CI | **Nic: do we support FreeBSD?** (Paul runs FreeBSD/GhostBSD infra; needs a stored base.txz per CPU) |
+| **Windows** | `x86_64-windows`, `aarch64-windows` | ❌ not wired | **Yes** — heavily CI-gated (windows ~ as much as ubuntu) | **Nic: add? It's the one CI-parity gap** (details below) |
+
+The tension to resolve: if the goal is **strict Aether-CI parity**, we'd *drop*
+musl+FreeBSD and *add* Windows. But musl (static, distro-independent Linux
+binaries) and FreeBSD (Paul's deploy infra) were added for real reasons beyond
+CI parity. So the real question for Nic is **"is the goal CI parity, or broader
+delivery coverage?"** — that answer decides which of the three groups stay.
+
+Nothing below should be *built* until that direction is set. Each group's
+technical notes are kept here so whichever way Nic goes, the work is scoped.
+
+---
+
+## Windows (x86_64 + aarch64) — the CI-parity gap
 
 The one genuine gap. `zig cc` bundles a full Windows target (MinGW-w64 CRT), so
 it's turnkey compiler-side — no sysroot — and "deliver a Windows `.exe` from a
@@ -30,6 +56,48 @@ Not a one-liner, though — the four deps map differently on Windows:
 - [ ] **Validate**: cross-build at least pcre2 + openssl to `x86_64-windows` on a
       Linux box and confirm `Mach-O`→COFF/PE members, the way mac was proven.
 - [ ] Add both to `MATRIX` in `provision.sh` once green.
+
+**Why it's the strongest case for adding:** Windows is the platform users least
+want to build from source themselves, Aether already auto-fetches a MinGW
+toolchain on Windows to spare them, and Aether CI gates on it as heavily as
+Linux. If we're doing cross-compile delivery at all, "Windows .exe from a Linux
+agent" is close to the point of the exercise.
+
+## musl (x86_64 + aarch64) — static-Linux delivery [DECISION: Nic]
+
+**Status: proven** (both build clean; verified distinct ELF x86-64 / aarch64).
+Already in `MATRIX`. The open question is whether we *keep* it.
+
+- **The pitch:** musl links a fully static, distro-independent Linux binary —
+  "runs on any Linux, no glibc-version roulette." Great for containers, edge, and
+  shipping a single binary to a machine you don't control.
+- **Against:** not in Aether's CI matrix, so it's coverage *beyond* what the
+  language formally supports. Two extra targets to maintain and CI-time to spend.
+- **Nic decides:** keep musl ×2, or drop to glibc-only and treat static Linux as
+  an on-demand extra? If kept, it's zero further work — it's done and validated.
+
+## FreeBSD (x86_64 + aarch64) — BSD delivery [DECISION: Nic]
+
+**Status: wired, base-sysroot path UNTESTED end-to-end.** In `MATRIX` but gated
+on a base sysroot that hasn't been fetched/proven yet.
+
+- **The pitch:** Paul runs FreeBSD / GhostBSD infrastructure; this is real deploy
+  surface for him. BSD base is freely redistributable (no Apple-style restriction
+  — the safe tier, licensing-wise).
+- **The cost:** unlike the turnkey targets, FreeBSD needs a stored `base.txz`
+  (~200 MB per CPU) fetched via `scripts/fetch-freebsd-base.sh`, because `zig cc`
+  bundles no FreeBSD libc. So it's the one tier with a stored blob and an extra
+  provisioning step.
+- **Not in Aether CI** — coverage beyond formal support, justified by Paul's infra
+  rather than parity.
+- **Nic decides:** do we support FreeBSD as a target? If yes, the remaining work
+  is:
+  - [ ] Run `scripts/fetch-freebsd-base.sh x86_64` + `aarch64` and confirm the
+        base extracts to a usable `--sysroot`.
+  - [ ] Prove at least pcre2 + openssl cross-build against the FreeBSD sysroot
+        (openssl uses `BSD-x86_64` / `BSD-aarch64` Configure targets — already
+        wired in `map_openssl_target`).
+  - [ ] Confirm `map_autoconf_host` FreeBSD hosts (`*-unknown-freebsd`) resolve.
 
 ## On demand only (don't add speculatively)
 
