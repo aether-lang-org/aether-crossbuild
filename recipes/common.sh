@@ -246,12 +246,18 @@ assert_arch() {
     command -v file >/dev/null 2>&1 || return 0
     _tmp="$WORK/archck"; rm -rf "$_tmp"; mkdir -p "$_tmp"
     ( cd "$_tmp" && "$ZIG" ar x "$_lib" 2>/dev/null || true )
-    _o=$(find "$_tmp" -name '*.o' | head -1 || true)
+    # -quit stops at the first match so `find` never writes into a closed pipe
+    # (the old `find | head -1` raised a harmless-but-alarming SIGPIPE on big
+    # archives like libcrypto.a). Fall back to a plain glob if -quit is absent.
+    _o=$(find "$_tmp" -name '*.o' -print -quit 2>/dev/null || true)
+    [ -n "$_o" ] || _o=$(ls "$_tmp"/*.o 2>/dev/null | head -1 || true)
     [ -n "$_o" ] || return 0
-    _desc=$(file "$_o")
+    # Report just the file(1) description (`-b`), not the temp path, for a clean log.
+    _desc=$(file -b "$_o" 2>/dev/null || file "$_o")
     case "$_t:$_desc" in
-        *macos*:*Mach-O*arm64*|*macos*:*Mach-O*x86_64*) log "arch ok: $(basename "$_lib") -> $_desc" ;;
-        *linux*:*ELF*|*freebsd*:*ELF*)                  log "arch ok: $(basename "$_lib") -> $_desc" ;;
-        *) log "WARNING: $(basename "$_lib") arch looks wrong for $_t: $_desc" ;;
+        *macos*:*Mach-O*|*linux*:*ELF*|*freebsd*:*ELF*|*windows*:*COFF*|*windows*:*PE32*)
+            log "arch ok: $(basename "$_lib") -> $_desc" ;;
+        *)
+            log "WARNING: $(basename "$_lib") arch looks unexpected for $_t: $_desc" ;;
     esac
 }
