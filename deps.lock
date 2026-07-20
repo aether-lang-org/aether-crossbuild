@@ -13,6 +13,11 @@ zlib                   1.3.1    https://zlib.net/fossils/zlib-1.3.1.tar.gz  9a93
 pcre2                  10.44    https://github.com/PCRE2Project/pcre2/releases/download/pcre2-10.44/pcre2-10.44.tar.gz  86b9cb0aa3bcb7994faa88018292bc704cdbb708e785f7c74352ff6ea7d3175b
 nghttp2                1.64.0   https://github.com/nghttp2/nghttp2/releases/download/v1.64.0/nghttp2-1.64.0.tar.gz  20e73f3cf9db3f05988996ac8b3a99ed529f4565ca91a49eb0550498e10621e8
 openssl                3.3.2    https://github.com/openssl/openssl/releases/download/openssl-3.3.2/openssl-3.3.2.tar.gz  2e8a40b01979afe8be0bbfb3de5dc1c6709fedb46d6c89c10da114ab5fc3d281
+# sqlite — opt-in (NOT in CB_LIBS default): the one common Tier-3 contrib dep,
+# for cross-shipping contrib.sqlite apps (LisMusic). Autoconf amalgamation
+# tarball = a single sqlite3.c + sqlite3.h, so recipes/sqlite.sh needs no
+# ./configure — just `zig cc -c` + ar. Enable with CB_LIBS="... sqlite".
+sqlite                 3.47.0   https://www.sqlite.org/2024/sqlite-autoconf-3470000.tar.gz  83eb21a6f6a649f506df8bd3aab85a08f7556ceed5dbd8dea743ea003fc3a957
 
 # Toolchain (fetched by scripts/get-zig.sh; kept here so the version is pinned
 # in one place). Update ZIG_* together.
