@@ -36,7 +36,15 @@ Four libraries × eight targets. The targets split into two tiers by effort:
 | Tier | Targets | Base sysroot needed? |
 |---|---|---|
 | **A — turnkey** | `x86_64-macos`, `aarch64-macos`, `x86_64-linux-gnu`, `aarch64-linux-gnu`, `x86_64-linux-musl`, `aarch64-linux-musl` | No — `zig cc` bundles libc / macOS SDK stubs |
-| **B — needs a base sysroot** | `x86_64-freebsd`, `aarch64-freebsd` | Yes — extract FreeBSD `base.txz` once per CPU (BSD-licensed, freely redistributable) |
+| **B — needs a base sysroot** | `x86_64-freebsd`, `aarch64-freebsd` (or version-pinned `…-freebsd15`) | Yes — extract FreeBSD `base.txz` once per CPU (BSD-licensed, freely redistributable) |
+
+> **FreeBSD versions.** `zig cc` bundles a FreeBSD-14 libc, so the plain
+> `…-freebsd` triple links against 14. Targeting a 15-only kernel surface
+> (`sys/jail.h`, `sys/rctl.h`, Capsicum structs) needs the matching base: run
+> `./scripts/fetch-freebsd-base.sh x86_64 15` (a version-suffixed `deps.lock`
+> pin + `bases/x86_64-freebsd15/`), then `./provision.sh x86_64-freebsd15`. The
+> version rides the base-sysroot dir only; the compiler triple stays
+> `x86_64-freebsd`.
 
 ## Usage
 

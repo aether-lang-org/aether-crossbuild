@@ -2,8 +2,15 @@
 # fetch-freebsd-base.sh — populate a FreeBSD base sysroot (headers + libc) under
 # ./bases/<cpu>-freebsd/, needed because zig cc does NOT bundle a FreeBSD libc.
 #
-#   ./scripts/fetch-freebsd-base.sh x86_64
-#   ./scripts/fetch-freebsd-base.sh aarch64
+#   ./scripts/fetch-freebsd-base.sh x86_64            # default pin (deps.lock: freebsd-base-<cpu>)
+#   ./scripts/fetch-freebsd-base.sh x86_64 15          # a specific major (deps.lock: freebsd-base-<cpu>-15)
+#   ./scripts/fetch-freebsd-base.sh aarch64 14
+#
+# The OPTIONAL second arg selects a version-suffixed deps.lock pin + a
+# version-suffixed base dir (bases/<cpu>-freebsd<ver>/), so multiple FreeBSD
+# majors coexist. With no version arg the behaviour is UNCHANGED: the
+# unversioned key and bases/<cpu>-freebsd/. (zig cc bundles a FreeBSD-14 libc;
+# a 15-only syscall/struct — sys/jail.h, sys/rctl.h — needs the matching base.)
 #
 # FreeBSD base is BSD-licensed and freely redistributable — this is the ONE tier
 # with a stored blob, and it's the safe one (no Apple restriction). We still keep
@@ -13,10 +20,21 @@ set -eu
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cpu=${1:-}
 case "$cpu" in
-    x86_64|amd64) cpu=x86_64; key=freebsd-base-x86_64; triple=x86_64-freebsd ;;
-    aarch64|arm64) cpu=aarch64; key=freebsd-base-aarch64; triple=aarch64-freebsd ;;
-    *) echo "usage: $0 <x86_64|aarch64>" >&2; exit 2 ;;
+    x86_64|amd64) cpu=x86_64 ;;
+    aarch64|arm64) cpu=aarch64 ;;
+    *) echo "usage: $0 <x86_64|aarch64> [freebsd-major, e.g. 14|15]" >&2; exit 2 ;;
 esac
+
+# optional version: suffix the deps.lock key AND the base dir so majors coexist.
+# no version -> the original unversioned key + bases/<cpu>-freebsd/ (unchanged).
+ver=${2:-}
+if [ -n "$ver" ]; then
+    key=freebsd-base-$cpu-$ver
+    triple=$cpu-freebsd$ver
+else
+    key=freebsd-base-$cpu
+    triple=$cpu-freebsd
+fi
 
 url=$(grep -E "^$key[[:space:]]" "$ROOT/deps.lock" | awk '{print $3}')
 sha=$(grep -E "^$key[[:space:]]" "$ROOT/deps.lock" | awk '{print $4}')
@@ -24,7 +42,7 @@ sha=$(grep -E "^$key[[:space:]]" "$ROOT/deps.lock" | awk '{print $4}')
 
 DL="$ROOT/work/downloads"; mkdir -p "$DL"
 base="$ROOT/bases/$triple"
-tar="$DL/$(basename "$url")-$cpu"
+tar="$DL/$(basename "$url")-$key"
 
 if [ ! -f "$tar" ]; then
     echo "fetch FreeBSD base <- $url" >&2

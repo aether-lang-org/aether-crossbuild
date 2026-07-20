@@ -97,7 +97,7 @@ EOF
 # The exact string zig's -target wants (mostly identical; macos gets -none abi
 # so system libs resolve from the bundled SDK stubs).
 map_zig_target() {
-    case "$1" in
+    case "$(fbsd_canon "$1")" in
         x86_64-macos)        echo "x86_64-macos-none" ;;
         aarch64-macos)       echo "aarch64-macos-none" ;;
         x86_64-linux-gnu)    echo "x86_64-linux-gnu" ;;
@@ -112,7 +112,7 @@ map_zig_target() {
 
 # The autoconf --host value (for zlib CHOST / pcre2+nghttp2 --host).
 map_autoconf_host() {
-    case "$1" in
+    case "$(fbsd_canon "$1")" in
         x86_64-macos)        echo "x86_64-apple-darwin" ;;
         aarch64-macos)       echo "aarch64-apple-darwin" ;;
         x86_64-linux-gnu)    echo "x86_64-linux-gnu" ;;
@@ -127,7 +127,7 @@ map_autoconf_host() {
 
 # openssl's ./Configure target name (openssl has its own naming scheme).
 map_openssl_target() {
-    case "$1" in
+    case "$(fbsd_canon "$1")" in
         x86_64-macos)        echo "darwin64-x86_64-cc" ;;
         aarch64-macos)       echo "darwin64-arm64-cc" ;;
         x86_64-linux-gnu|x86_64-linux-musl)     echo "linux-x86_64" ;;
@@ -139,7 +139,18 @@ map_openssl_target() {
 }
 
 # Is this a FreeBSD target (needs a base sysroot under bases/)?
-is_freebsd() { case "$1" in *-freebsd) return 0 ;; *) return 1 ;; esac; }
+is_freebsd() { case "$1" in *-freebsd|*-freebsd[0-9]*) return 0 ;; *) return 1 ;; esac; }
+
+# Canonical (version-STRIPPED) triple for the zig/autoconf/openssl mappers, which
+# name a target by OS not OS-version: x86_64-freebsd15 -> x86_64-freebsd. A triple
+# with no version suffix passes through unchanged. (The version lives only in the
+# base-sysroot dir; zig/autoconf don't take a FreeBSD version.)
+fbsd_canon() {
+    case "$1" in
+        *-freebsd[0-9]*) echo "$1" | sed "s/[0-9]*$//" ;;  # strip trailing version
+        *) echo "$1" ;;
+    esac
+}
 
 # Extra CC flags a target needs (e.g. --sysroot for freebsd). Echoes flags or "".
 target_extra_cflags() {

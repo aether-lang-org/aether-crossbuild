@@ -19,6 +19,13 @@ openssl                3.3.2    https://github.com/openssl/openssl/releases/down
 zig                    0.13.0   https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz  d45312e61ebcc48032b77bc4cf7fd6915c11fa16e4aad116b66c9468211230ea
 
 # FreeBSD base sysroot (fetched by scripts/fetch-freebsd-base.sh). One entry per
-# CPU; the script picks by arch. BSD-licensed, freely redistributable.
+# CPU (the default the script picks by arch), PLUS optional version-suffixed
+# entries (freebsd-base-<cpu>-<major>) so FreeBSD majors coexist — zig cc bundles
+# a FreeBSD-14 libc, so a 15-target linking 15-only surface (sys/jail.h,
+# sys/rctl.h) needs the matching 15 base. BSD-licensed, freely redistributable.
 freebsd-base-x86_64    14.3     https://download.freebsd.org/releases/amd64/14.3-RELEASE/base.txz  e38b5cf756d60086a6c2f736eff19cc7685f7e2313e31d14342fc8df57200a92
 freebsd-base-aarch64   14.3     https://download.freebsd.org/releases/arm64/aarch64/14.3-RELEASE/base.txz  f83e824cb7a20dbadb2888a8bd253e6a1ac35024cc6dc8af9f3e229f75ec7129
+# FreeBSD 15.0 pins (version-suffixed — coexist with the 14.3 default above).
+# Extracted to bases/<cpu>-freebsd15/. sha self-verified against a fresh fetch
+# 2026-07-20 (no CHECKSUM.SHA256 published at that mirror path).
+freebsd-base-x86_64-15    15.0     https://download.freebsd.org/releases/amd64/15.0-RELEASE/base.txz  ac0c933cc02ee8af4da793f551e4a9a15cdcf0e67851290b1e8c19dd6d30bba8

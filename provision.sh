@@ -29,6 +29,12 @@ MATRIX="x86_64-macos aarch64-macos \
 # into configure's link probe (`cc conftest.c <name>`), breaking the build.
 : "${CB_LIBS:=zlib pcre2 nghttp2 openssl}"
 
+
+# Fetch-hint decomposition of a (possibly versioned) freebsd triple:
+#   x86_64-freebsd15 -> cpu=x86_64 ver=15 ;  x86_64-freebsd -> cpu=x86_64 ver=""
+fbsd_cpu() { echo "${1%%-freebsd*}"; }
+fbsd_ver() { case "$1" in *-freebsd[0-9]*) echo "${1##*-freebsd}" ;; *) echo "" ;; esac; }
+
 need curl; need tar; need make; need awk; need sha256sum
 
 usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -39,7 +45,7 @@ provision_one() {
     printf '\n\033[1m== %s  (zig -target %s)\033[0m\n' "$_t" "$_zt" >&2
 
     if is_freebsd "$_t" && [ ! -d "$BASES/$_t" ]; then
-        die "freebsd target needs a base sysroot: run ./scripts/fetch-freebsd-base.sh ${_t%-freebsd}"
+        die "freebsd target needs a base sysroot: run ./scripts/fetch-freebsd-base.sh $(fbsd_cpu "$_t") $(fbsd_ver "$_t")"
     fi
 
     _wd=$(setup_zig_wrappers "$_zt")       # cc/ar/ranlib pinned to this target
@@ -70,7 +76,7 @@ case "${1:-}" in
         for t in $MATRIX; do
             # skip freebsd targets that have no base yet, with a clear note
             if is_freebsd "$t" && [ ! -d "$BASES/$t" ]; then
-                log "skip $t (no base sysroot — run scripts/fetch-freebsd-base.sh ${t%-freebsd})"
+                log "skip $t (no base sysroot — run scripts/fetch-freebsd-base.sh $(fbsd_cpu "$t") $(fbsd_ver "$t"))"
                 continue
             fi
             provision_one "$t"
