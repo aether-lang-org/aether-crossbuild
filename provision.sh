@@ -18,6 +18,8 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$ROOT/recipes/nghttp2.sh"
 . "$ROOT/recipes/openssl.sh"
 . "$ROOT/recipes/sqlite.sh"
+. "$ROOT/recipes/lua.sh"
+. "$ROOT/recipes/duktape.sh"
 
 # The full matrix (Tier A turnkey + Tier B freebsd).
 MATRIX="x86_64-macos aarch64-macos \
@@ -57,6 +59,8 @@ provision_one() {
             nghttp2) build_nghttp2 "$_t" "$_wd" ;;
             openssl) build_openssl "$_t" "$_wd" ;;
             sqlite)  build_sqlite  "$_t" "$_wd" ;;
+            lua)     build_lua     "$_t" "$_wd" ;;
+            duktape) build_duktape "$_t" "$_wd" ;;
             *) die "unknown lib in CB_LIBS: $_lib" ;;
         esac
     done

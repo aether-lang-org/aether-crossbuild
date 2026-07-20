@@ -18,6 +18,13 @@ openssl                3.3.2    https://github.com/openssl/openssl/releases/down
 # tarball = a single sqlite3.c + sqlite3.h, so recipes/sqlite.sh needs no
 # ./configure — just `zig cc -c` + ar. Enable with CB_LIBS="... sqlite".
 sqlite                 3.47.0   https://www.sqlite.org/2024/sqlite-autoconf-3470000.tar.gz  83eb21a6f6a649f506df8bd3aab85a08f7556ceed5dbd8dea743ea003fc3a957
+# lua / duktape — opt-in HEADER-ONLY deps for the dlopen host bridges
+# (contrib/host/lua, contrib/host/duktape). The bridge dlopen's the runtime lib
+# at RUNTIME but #includes the language headers at COMPILE time, so the recipe
+# only stages headers into the sysroot (no cross-built .a). Enable per-need with
+# CB_LIBS="... lua" / "... duktape".
+lua                    5.4.7    https://www.lua.org/ftp/lua-5.4.7.tar.gz  9fbf5e28ef86c69858f6d3d34eccc32e911c1a28b4120ff3e84aaa70cfbf1e30
+duktape                2.7.0    https://duktape.org/duktape-2.7.0.tar.xz  90f8d2fa8b5567c6899830ddef2c03f3c27960b11aca222fa17aa7ac613c2890
 
 # Toolchain (fetched by scripts/get-zig.sh; kept here so the version is pinned
 # in one place). Update ZIG_* together.
