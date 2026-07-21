@@ -18,6 +18,12 @@ build_openssl() {
     # (see WHY-NOT-PUBLISHED.md). DO NOT remove this to "get native RNG".
     _osslflags=""
     case "$_t" in *-macos) _osslflags="-DOPENSSL_NO_APPLE_CRYPTO_RANDOM" ;; esac
+    # FreeBSD: openssl's hand-written x86_64 .s files use gas syntax zig's
+    # integrated assembler rejects ("aes-x86_64.s: error: expected string").
+    # no-asm drops the perlasm path for portable C — slower crypto, but it
+    # builds. (The standard openssl-cross workaround when the target assembler
+    # differs; the C impls are correct, just not SIMD-optimized.)
+    case "$_t" in *-freebsd*) _extra="$_extra no-asm" ;; esac
 
     _src=$(fetch_verify openssl "$_t")
     log "openssl: Configure $_osslt (no-shared, libs only)"

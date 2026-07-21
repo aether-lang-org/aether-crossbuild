@@ -19,7 +19,7 @@ and provenance costs:
 |---|---|---|---|---|
 | **Core** | linux-gnu ×2, macos ×2 | ✅ proven | Yes (ubuntu + macos are CI-gated) | Keep — uncontroversial |
 | **musl** | `x86_64-linux-musl`, `aarch64-linux-musl` | ✅ proven | **No** — not in Aether CI | **Nic: do we want static-Linux builds?** |
-| **FreeBSD** | `x86_64-freebsd`, `aarch64-freebsd` | ⚠️ base+zlib proven; autoconf libs blocked on Gap B (CRT link) | **No** — not in Aether CI | **Nic: do we support FreeBSD?** (Paul runs FreeBSD/GhostBSD infra; needs a stored base.txz per CPU) |
+| **FreeBSD** | `x86_64-freebsd`, `aarch64-freebsd` | ⚠️ base + zlib/pcre2/openssl proven; nghttp2 deferred (lib port) | **No** — not in Aether CI | **Nic: do we support FreeBSD?** (Paul runs FreeBSD/GhostBSD infra; needs a stored base.txz per CPU) |
 | **Windows** | `x86_64-windows`, `aarch64-windows` | ❌ not wired | **Yes** — heavily CI-gated (windows ~ as much as ubuntu) | **Nic: add? It's the one CI-parity gap** (details below) |
 
 The tension to resolve: if the goal is **strict Aether-CI parity**, we'd *drop*
@@ -91,28 +91,35 @@ the recipes were only exercised on Tier-A targets):
       immediately). `--sysroot` ALONE doesn't add the base's include/lib for a
       FreeBSD target (unlike zig's bundled targets). Fixed to also emit
       `-I$B/usr/include -L$B/usr/lib -L$B/lib`. **zlib now builds + stages.**
-- [ ] **Gap B (LINK) — OPEN:** pcre2's (and openssl's/nghttp2's) `./configure`
-      link-probes a test executable, which on FreeBSD needs the CRT startup
-      objects + real libc.so.7 (zig cc can't supply a FreeBSD libc):
-      ```
-      ld.lld: warning: cannot find entry symbol _start
-      error: libc not available
-      configure: error: C compiler cannot create executables
-      ```
-      There's a `target_extra_cflags` but no `target_extra_ldflags`. Fix mirrors
-      ae.c's `fbsd_link`: add `target_extra_ldflags <triple>` emitting
-      `-nostdlib $B/usr/lib/crt1.o $B/usr/lib/crti.o $B/lib/libc.so.7 $B/usr/lib/crtn.o`
-      and thread it into each autoconf recipe's LDFLAGS + the run_configure env
-      (zlib DIDN'T need it — hand-Makefile, `ar` only, no exe link; so this is
-      specifically the autoconf/Configure recipes). NB zig exits nonzero with a
-      cosmetic "libc not available" even when it links; configure has no
-      output-exists escape hatch, so the CRT flags are mandatory here.
-      AEO SCOPE: aeo needs only openssl+nghttp2+zlib (NOT pcre2 — no regex
-      import), and zlib already builds; getting those three unblocks real-aeo's
-      TLS half (secrets hmac + PVE https).
+- [x] **Gap B (LINK) — FIXED:** configure/openssl link-probe a test executable,
+      which on FreeBSD needs CRT objects + real libc.so.7 (`configure: error: C
+      compiler cannot create executables`; zig can't supply a FreeBSD libc). Fix:
+      `setup_zig_wrappers` takes the base dir and its cc/c++ wrappers add the
+      FreeBSD link recipe (`-nostdlib crt1/crti/libc.so.7/crtn`) on LINK
+      invocations (`-c` absent), AND rescue zig's cosmetic "libc not available"
+      nonzero exit when the output (`-o <f>`, default `a.out`) was written —
+      mirroring ae.c's "output exists == linked" (#1216). Baking it into the
+      wrapper (not per-recipe LDFLAGS) covers all three build systems uniformly.
+      Now **zlib + pcre2 + openssl all cross-build + stage** for x86_64-freebsd15
+      (libcrypto.a verified `ELF … (FreeBSD)`, 29 MB). Plus a recipe tweak:
+      openssl gets `no-asm` on freebsd (its x86_64 perlasm uses gas syntax zig's
+      integrated assembler rejects).
+- [ ] **nghttp2 — per-lib port issue (NOT infrastructure, NOT blocking aeo):**
+      fails at make with FreeBSD-15 `sys/types.h` `gid_t`/`uid_t` typedef errors
+      ("cannot combine with previous type-name") — nghttp2-specific header-order
+      poisoning (a bare `#include <sys/types.h>` compiles clean, so it's not a
+      base-sysroot bug). Deferred: aeo doesn't need it — nghttp2 is OPTIONAL in
+      std.http ("when the build doesn't link libnghttp2 the wrapper compiles to
+      no-op"; HTTP/2 SERVER only, and aeo's PVE client is HTTP/1.1). Fix when a
+      cross-shipped app actually needs HTTP/2.
 
-**Original decision framing below.** In `MATRIX`, base-sysroot path now proven
-for the no-link-probe case (zlib), blocked on Gap B for the autoconf libs.
+AEO STATUS: the three libs aeo needs (openssl for std.cryptography hmac +
+std.http.client TLS; zlib; pcre2 not even needed — no regex) now cross-build.
+Real-aeo TLS-half cross-compile is unblocked: point CROSSBUILD_SYSROOT at
+sysroots/x86_64-freebsd15 and rebuild.
+
+**Original decision framing below.** In `MATRIX`; base + the three aeo-relevant
+libs proven; nghttp2 deferred as a lib-specific port.
 
 - **The pitch:** Paul runs FreeBSD / GhostBSD infrastructure; this is real deploy
   surface for him. BSD base is freely redistributable (no Apple-style restriction

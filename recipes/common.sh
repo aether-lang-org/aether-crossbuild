@@ -52,19 +52,54 @@ export ZIG
 # Build cc/ar/ranlib wrapper scripts that pin `-target <triple>` for a target.
 # openssl and autoconf both invoke $CC many times with their own flags; a sticky
 # wrapper is more robust than exporting a multi-word $CC. Echoes the wrapper dir.
+#
+# Optional 2nd arg `<base>`: a FreeBSD base sysroot dir. When given, the cc/c++
+# wrappers add the FreeBSD LINK recipe (-nostdlib + CRT objects + real libc.so.7)
+# on LINK invocations only — i.e. when `-c` is absent. This is what makes a
+# configure "can the C compiler create executables?" probe (and any exe link)
+# succeed: zig cc can't supply a FreeBSD libc, and the base's usr/lib/libc.so is
+# a GROUP linker script naming absolute /lib paths that don't exist on the build
+# host, so we point at the versioned /lib/libc.so.7 directly. Mirrors tools/ae.c's
+# fbsd_link (#1216). On a compile (`-c`) the link flags are omitted (crt objects
+# passed to a compile-only cc would error). No base -> unchanged (Tier A).
 setup_zig_wrappers() {
     _triple=$1
+    _base=${2:-}
     _wd="$WORK/wrappers/$_triple"
     mkdir -p "$_wd"
-    # cc / c++: pin the target. Everything else passes through.
-    cat > "$_wd/cc" <<EOF
+    # FreeBSD link tail (empty unless a base sysroot was supplied).
+    _fbsd_link=""
+    if [ -n "$_base" ]; then
+        _fbsd_link="-nostdlib $_base/usr/lib/crt1.o $_base/usr/lib/crti.o $_base/lib/libc.so.7 $_base/usr/lib/crtn.o"
+    fi
+    # cc / c++: pin the target. On FreeBSD, add the link recipe when NOT compiling
+    # (-c absent) so exe links + configure probes resolve libc/_start. AND treat
+    # zig's cosmetic "error: libc not available" nonzero exit as success WHEN the
+    # output file was actually written (ld.lld linked it fine; zig reserves that
+    # message for targets it can't supply a libc for — which is why we bring our
+    # own). Mirrors ae.c's "output exists == linked" (#1208). Without the exit
+    # rescue, configure's exe probe fails on the exit code despite a valid binary.
+    for _tool in cc c++; do
+        cat > "$_wd/$_tool" <<EOF
 #!/bin/sh
-exec "$ZIG" cc -target $_triple "\$@"
+_link='$_fbsd_link'
+# no FreeBSD base (Tier A) OR a compile-only invocation: plain passthrough.
+if [ -z "\$_link" ]; then exec "$ZIG" $_tool -target $_triple "\$@"; fi
+for a in "\$@"; do [ "\$a" = "-c" ] && exec "$ZIG" $_tool -target $_triple "\$@"; done
+# link: capture -o <out> (default a.out — configure's probe omits -o), add the
+# CRT recipe, rescue a written-output nonzero exit (zig's cosmetic "libc not
+# available"). Run in the cwd so a.out lands where configure looks.
+_out='a.out'; _p=0
+for a in "\$@"; do
+    if [ "\$_p" = 1 ]; then _out="\$a"; _p=0; continue; fi
+    [ "\$a" = "-o" ] && _p=1
+done
+"$ZIG" $_tool -target $_triple "\$@" \$_link
+_rc=\$?
+[ "\$_rc" -ne 0 ] && [ -s "\$_out" ] && exit 0
+exit "\$_rc"
 EOF
-    cat > "$_wd/c++" <<EOF
-#!/bin/sh
-exec "$ZIG" c++ -target $_triple "\$@"
-EOF
+    done
     # ar / ranlib / strip: zig provides llvm equivalents. ranlib on some upstreams
     # gets passed macOS-specific flags (e.g. -c) that llvm-ranlib rejects; swallow
     # unknown single-letter opts defensively.

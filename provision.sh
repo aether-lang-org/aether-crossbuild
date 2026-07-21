@@ -51,7 +51,11 @@ provision_one() {
         die "freebsd target needs a base sysroot: run ./scripts/fetch-freebsd-base.sh $(fbsd_cpu "$_t") $(fbsd_ver "$_t")"
     fi
 
-    _wd=$(setup_zig_wrappers "$_zt")       # cc/ar/ranlib pinned to this target
+    # FreeBSD wrappers get the base sysroot so their cc adds the link recipe
+    # (CRT + libc.so.7) on exe links / configure probes. Tier A: no base arg.
+    _wbase=""
+    if is_freebsd "$_t"; then _wbase="$BASES/$_t"; fi
+    _wd=$(setup_zig_wrappers "$_zt" "$_wbase")   # cc/ar/ranlib pinned to this target
     for _lib in $CB_LIBS; do
         case "$_lib" in
             zlib)    build_zlib    "$_t" "$_wd" ;;
