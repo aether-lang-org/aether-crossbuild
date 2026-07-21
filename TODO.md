@@ -19,7 +19,7 @@ and provenance costs:
 |---|---|---|---|---|
 | **Core** | linux-gnu ×2, macos ×2 | ✅ proven | Yes (ubuntu + macos are CI-gated) | Keep — uncontroversial |
 | **musl** | `x86_64-linux-musl`, `aarch64-linux-musl` | ✅ proven | **No** — not in Aether CI | **Nic: do we want static-Linux builds?** |
-| **FreeBSD** | `x86_64-freebsd`, `aarch64-freebsd` | ⚠️ wired, base-sysroot path untested | **No** — not in Aether CI | **Nic: do we support FreeBSD?** (Paul runs FreeBSD/GhostBSD infra; needs a stored base.txz per CPU) |
+| **FreeBSD** | `x86_64-freebsd`, `aarch64-freebsd` | ⚠️ base+zlib proven; autoconf libs blocked on Gap B (CRT link) | **No** — not in Aether CI | **Nic: do we support FreeBSD?** (Paul runs FreeBSD/GhostBSD infra; needs a stored base.txz per CPU) |
 | **Windows** | `x86_64-windows`, `aarch64-windows` | ❌ not wired | **Yes** — heavily CI-gated (windows ~ as much as ubuntu) | **Nic: add? It's the one CI-parity gap** (details below) |
 
 The tension to resolve: if the goal is **strict Aether-CI parity**, we'd *drop*
@@ -78,8 +78,41 @@ Already in `MATRIX`. The open question is whether we *keep* it.
 
 ## FreeBSD (x86_64 + aarch64) — BSD delivery [DECISION: Nic]
 
-**Status: wired, base-sysroot path UNTESTED end-to-end.** In `MATRIX` but gated
-on a base sysroot that hasn't been fetched/proven yet.
+**Status (2026-07-21): base sysroot PROVEN, zlib cross-builds; the autoconf
+recipes (pcre2/nghttp2/openssl) blocked on a LINK-side CRT gap.** The base path
+is no longer untested — `fetch-freebsd-base.sh x86_64 15` extracts a usable
+sysroot, `ae build --target=x86_64-freebsd` cross-links + runs REAL aeo on a
+FreeBSD-15 box (jail/bhyve substrates detected). A `provision.sh x86_64-freebsd15`
+run surfaced two recipe gaps (both twins of the tools/ae.c #1208 FreeBSD fixes —
+the recipes were only exercised on Tier-A targets):
+
+- [x] **Gap A (COMPILE) — FIXED:** `target_extra_cflags` emitted only
+      `--sysroot`, so `#include <sys/types.h>` failed "file not found" (zlib died
+      immediately). `--sysroot` ALONE doesn't add the base's include/lib for a
+      FreeBSD target (unlike zig's bundled targets). Fixed to also emit
+      `-I$B/usr/include -L$B/usr/lib -L$B/lib`. **zlib now builds + stages.**
+- [ ] **Gap B (LINK) — OPEN:** pcre2's (and openssl's/nghttp2's) `./configure`
+      link-probes a test executable, which on FreeBSD needs the CRT startup
+      objects + real libc.so.7 (zig cc can't supply a FreeBSD libc):
+      ```
+      ld.lld: warning: cannot find entry symbol _start
+      error: libc not available
+      configure: error: C compiler cannot create executables
+      ```
+      There's a `target_extra_cflags` but no `target_extra_ldflags`. Fix mirrors
+      ae.c's `fbsd_link`: add `target_extra_ldflags <triple>` emitting
+      `-nostdlib $B/usr/lib/crt1.o $B/usr/lib/crti.o $B/lib/libc.so.7 $B/usr/lib/crtn.o`
+      and thread it into each autoconf recipe's LDFLAGS + the run_configure env
+      (zlib DIDN'T need it — hand-Makefile, `ar` only, no exe link; so this is
+      specifically the autoconf/Configure recipes). NB zig exits nonzero with a
+      cosmetic "libc not available" even when it links; configure has no
+      output-exists escape hatch, so the CRT flags are mandatory here.
+      AEO SCOPE: aeo needs only openssl+nghttp2+zlib (NOT pcre2 — no regex
+      import), and zlib already builds; getting those three unblocks real-aeo's
+      TLS half (secrets hmac + PVE https).
+
+**Original decision framing below.** In `MATRIX`, base-sysroot path now proven
+for the no-link-probe case (zlib), blocked on Gap B for the autoconf libs.
 
 - **The pitch:** Paul runs FreeBSD / GhostBSD infrastructure; this is real deploy
   surface for him. BSD base is freely redistributable (no Apple-style restriction
@@ -92,7 +125,7 @@ on a base sysroot that hasn't been fetched/proven yet.
   rather than parity.
 - **Nic decides:** do we support FreeBSD as a target? If yes, the remaining work
   is:
-  - [ ] Run `scripts/fetch-freebsd-base.sh x86_64` + `aarch64` and confirm the
+  - [x] Run `scripts/fetch-freebsd-base.sh x86_64`... confirm the
         base extracts to a usable `--sysroot`.
   - [ ] Prove at least pcre2 + openssl cross-build against the FreeBSD sysroot
         (openssl uses `BSD-x86_64` / `BSD-aarch64` Configure targets — already

@@ -158,7 +158,11 @@ target_extra_cflags() {
     if is_freebsd "$_t"; then
         _b="$BASES/$_t"
         [ -d "$_b" ] || die "FreeBSD base sysroot missing: $_b — run scripts/fetch-freebsd-base.sh first"
-        printf -- "--sysroot=%s" "$_b"
+        # NB: for a FreeBSD target, `--sysroot` ALONE does not make zig cc search
+        # the sysroot's usr/include and usr/lib (unlike its bundled targets) — the
+        # -I/-L must be explicit, or a source #include <sys/types.h> fails
+        # "file not found". Same finding as tools/ae.c's run_cross_build (#1208).
+        printf -- "--sysroot=%s -I%s/usr/include -L%s/usr/lib -L%s/lib" "$_b" "$_b" "$_b" "$_b"
     else
         printf ""
     fi
