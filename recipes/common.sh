@@ -141,6 +141,8 @@ map_zig_target() {
         aarch64-linux-musl)  echo "aarch64-linux-musl" ;;
         x86_64-freebsd)      echo "x86_64-freebsd" ;;
         aarch64-freebsd)     echo "aarch64-freebsd" ;;
+        x86_64-windows)      echo "x86_64-windows-gnu" ;;
+        aarch64-windows)     echo "aarch64-windows-gnu" ;;
         *) die "unknown target triple: $1" ;;
     esac
 }
@@ -156,6 +158,8 @@ map_autoconf_host() {
         aarch64-linux-musl)  echo "aarch64-linux-musl" ;;
         x86_64-freebsd)      echo "x86_64-unknown-freebsd" ;;
         aarch64-freebsd)     echo "aarch64-unknown-freebsd" ;;
+        x86_64-windows)      echo "x86_64-w64-mingw32" ;;
+        aarch64-windows)     echo "aarch64-w64-mingw32" ;;
         *) die "no autoconf host for: $1" ;;
     esac
 }
@@ -169,6 +173,8 @@ map_openssl_target() {
         aarch64-linux-gnu|aarch64-linux-musl)   echo "linux-aarch64" ;;
         x86_64-freebsd)      echo "BSD-x86_64" ;;
         aarch64-freebsd)     echo "BSD-aarch64" ;;
+        x86_64-windows)      echo "mingw64" ;;
+        aarch64-windows)     echo "mingw64" ;;
         *) die "no openssl target for: $1" ;;
     esac
 }

@@ -21,10 +21,11 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "$ROOT/recipes/lua.sh"
 . "$ROOT/recipes/duktape.sh"
 
-# The full matrix (Tier A turnkey + Tier B freebsd).
+# The full matrix (Tier A turnkey — macos/linux/windows; Tier B — freebsd).
 MATRIX="x86_64-macos aarch64-macos \
         x86_64-linux-gnu aarch64-linux-gnu \
         x86_64-linux-musl aarch64-linux-musl \
+        x86_64-windows aarch64-windows \
         x86_64-freebsd aarch64-freebsd"
 
 # Libraries to build, in dependency-free order (openssl last: it's the slow one).
